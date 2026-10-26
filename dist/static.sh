@@ -30,10 +30,17 @@ sha256() {
 	fi
 }
 
+clone_ref() {
+	git init "$2"
+	git -C "$2" remote add origin "$1"
+	git -C "$2" fetch --depth 1 origin "$3"
+	git -C "$2" checkout --detach FETCH_HEAD
+}
+
 build_r2() {
 	if [ -z "$R2_SRC" ]; then
 		R2_SRC=$WORK/radare2-src
-		[ -d "$R2_SRC" ] || git clone --depth 1 --branch "$R2_REF" https://github.com/radareorg/radare2 "$R2_SRC"
+		[ -d "$R2_SRC" ] || clone_ref https://github.com/radareorg/radare2 "$R2_SRC" "$R2_REF"
 	fi
 	rm -rf "$WORK/r2-build"
 	meson setup "$WORK/r2-build" "$R2_SRC" --prefix="$WORK/r2" --libdir=lib \
@@ -60,7 +67,7 @@ build_fuse() {
 	tar -xzf "$tarball" -C "$src" --strip-components 1
 	extra=
 	if [ "$OS" = Darwin ]; then
-		[ -d "$WORK/fusetta" ] || git clone --depth 1 --branch "$FUSETTA_REF" https://github.com/hsorbo/fusetta "$WORK/fusetta"
+		[ -d "$WORK/fusetta" ] || clone_ref https://github.com/hsorbo/fusetta "$WORK/fusetta" "$FUSETTA_REF"
 		patch -s -d "$src" -p1 < "$WORK/fusetta/patches/libfuse-$FUSE_VERSION-darwin.patch"
 		# the darwin mount backend needs the custom io hooks
 		extra=-Denable-custom-io=true

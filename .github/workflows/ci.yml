@@ -48,7 +48,6 @@ jobs:
 
       # build r2 from git: the point is to stress test the current r_fs.
       # windows uses the release until r2 git builds with msvc again
-      # (libr/util/arena.c uses _Static_assert, which needs /std:c11)
       - uses: radareorg/github-actions@v3
         id: r2
         with:
@@ -78,7 +77,7 @@ jobs:
         # not bash: on windows git's /usr/bin/link.exe would shadow the msvc linker
         shell: pwsh
         run: |
-          meson setup build "-Dtestbins=$PWD/testbins/fs" "-Dr2_prefix=${{ steps.r2.outputs.prefix }}"
+          meson setup build "-Dtestbins=$PWD/testbins/fs" "-Dr2_prefix=${{ steps.r2.outputs.prefix }}" ${{ runner.os == 'Windows' && '-Dc_args=/Zc:preprocessor' || '' }}
           meson compile -C build
 
       - name: Test with Meson

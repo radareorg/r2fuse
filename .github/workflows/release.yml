@@ -10,14 +10,19 @@ on:
   workflow_dispatch:
     inputs:
       r2_ref:
-        description: 'radare2 branch or tag to link'
-        default: 'master'
+        description: 'radare2 branch, tag or commit (empty uses the pinned revision)'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
-  R2_REF: ${{ github.event.inputs.r2_ref || 'master' }}
+  # Includes the APFS registration and bundled-lz4 Meson fixes.
+  R2_REF: ${{ github.event.inputs.r2_ref || '7be472225088ea025d71d65ac5b617336b35c772' }}
+  FUSETTA_REF: 08f1dd86b03844c8e8eb8ddc9972cac755a272fb
   VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
 jobs:
@@ -57,6 +62,7 @@ jobs:
         with:
           name: linux-${{ matrix.arch }}
           path: r2fuse-*.tar.gz
+          if-no-files-found: error
 
   macos:
     runs-on: macos-latest
@@ -84,6 +90,7 @@ jobs:
         with:
           name: macos-arm64
           path: r2fuse-*.tar.gz
+          if-no-files-found: error
 
   windows:
     runs-on: windows-latest
@@ -99,8 +106,12 @@ jobs:
       - name: Build static radare2
         shell: pwsh
         run: |
-          git clone --depth 1 --branch $env:R2_REF https://github.com/radareorg/radare2 r2src
-          meson setup r2build r2src "--prefix=$PWD/r2" --libdir=lib --buildtype=release --default-library=static -Dcli=disabled -Denable_tests=false -Db_vscrt=mt
+          git init r2src
+          git -C r2src remote add origin https://github.com/radareorg/radare2
+          git -C r2src fetch --depth 1 origin $env:R2_REF
+          git -C r2src checkout --detach FETCH_HEAD
+          # The string macros require the conforming MSVC preprocessor.
+          meson setup r2build r2src "--prefix=$PWD/r2" --libdir=lib --buildtype=release --default-library=static -Dcli=disabled -Denable_tests=false -Db_vscrt=mt -Dc_std=c11 -Dc_args=/Zc:preprocessor
           ninja -C r2build install
       - name: Build static r2fuse
         shell: pwsh
@@ -130,17 +141,30 @@ jobs:
         with:
           name: windows-x64
           path: r2fuse-*.zip
+          if-no-files-found: error
 
   release:
     if: github.ref_type == 'tag'
     needs: [linux, macos, windows]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: Check release assets and generate checksums
+        working-directory: dist
+        run: |
+          test -s r2fuse-$VERSION-linux-x86_64.tar.gz
+          test -s r2fuse-$VERSION-linux-arm64.tar.gz
+          test -s r2fuse-$VERSION-macos-arm64.tar.gz
+          test -s r2fuse-$VERSION-windows-x64.zip
+          sha256sum r2fuse-*.tar.gz r2fuse-*.zip > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
+          name: r2fuse ${{ env.VERSION }}
           files: dist/*
+          fail_on_unmatched_files: true
           generate_release_notes: true
