@@ -121,6 +121,9 @@ jobs:
           foreach ($lib in 'r_fs', 'r_io', 'r_util', 'r_cons', 'r_socket', 'r_muta') {
             Copy-Item "${{ steps.r2.outputs.prefix }}/bin/$lib.dll" $d
           }
+          $runtime = Get-ChildItem "$env:VCINSTALLDIR/Redist/MSVC/*/x64/Microsoft.VC*.CRT/vcruntime140.dll" | Select-Object -First 1
+          if (!$runtime) { throw 'Cannot find the redistributable Visual C++ runtime' }
+          Copy-Item $runtime.FullName $d
           # Only the packaged DLLs should supply radare2 at runtime.
           $env:PATH = "$env:SystemRoot/System32;$env:SystemRoot"
           & "$PWD/$d/r2fuse.exe" -v
