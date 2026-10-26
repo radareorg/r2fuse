@@ -1,12 +1,31 @@
 # r2fuse
 
-Mount any filesystem supported by [radare2](https://github.com/radareorg/radare2)'s
-`r_fs` library as a real, read-only volume, using FUSE in userland.
+[![CI](https://github.com/radareorg/r2fuse/actions/workflows/ci.yml/badge.svg)](https://github.com/radareorg/r2fuse/actions/workflows/ci.yml)
 
-`r2fuse` links against `libr_fs` and serves the files of the image through
-libfuse3. You can browse an ext4, APFS, HFS+, NTFS, FAT, ISO9660, UDF, XFS, UBIFS,
-BFS, ReiserFS, SquashFS... image in Finder, Explorer, `ls` or `cp`, without root
-or kernel drivers for those formats.
+Mount disk images as real, **read-only** volumes without root or kernel
+drivers. `r2fuse` uses the `r_fs` library from
+[radare2](https://github.com/radareorg/radare2) and serves the files through
+FUSE (libfuse3 / macFUSE / Fusetta / WinFsp), so `ls`, `cp`, Finder or Explorer
+just work on the image.
+
+```sh
+r2fuse disk.img ~/mnt    # mount (type is autodetected)
+ls ~/mnt
+umount ~/mnt             # Linux: fusermount3 -u ~/mnt
+```
+
+## Supported filesystems
+
+Whatever your radare2 build provides; `r2fuse -L` prints the exact list.
+With current radare2:
+
+| Type | Formats |
+|---|---|
+| Disk | ext2/3/4, FAT, NTFS, XFS, UFS, JFS, ReiserFS, MINIX, BFS (Haiku), SFS (Amiga), Fossil (Plan 9), HFS, HFS+, APFS |
+| Optical / embedded | ISO9660 (Joliet, Rock Ridge), UDF, SquashFS, UBIFS |
+| Containers | tar, zip, fat Mach-O slices, Apple SEP64 firmware |
+
+Partition tables (MBR, GPT...) are handled with `-P` / `-p`, see Usage.
 
 The second goal is to **stress test `r_fs` and its plugins**. Every `ls`,
 `cat` or `cp` from the OS becomes a burst of `r_fs_dir`, `r_fs_open` and
