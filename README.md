@@ -170,8 +170,11 @@ f      19605 c960f1896b3e8434 /etc/services
 from the [radare2-testbins](https://github.com/radareorg/radare2-testbins)
 `fs/` directory (default `../radare2/test/bins/fs`, override with
 `make check TESTBINS=...`). Each image has an expected result. Plugin bugs show
-up as `XFAIL`, and when one gets fixed it shows up as `XPASS` so the table can be
-updated. Set `R2FUSE_MOUNT=1` to also mount every image and compare file sizes
+up as `XFAIL`, and when one gets fixed it shows up as `XPASS` and fails the run
+until its expectation is updated. Malformed images pass only when they are
+rejected with the expected error; crashes and timeouts always fail.
+The check/stress commands return 0 on success, 1 on a failed check, and 2 if
+the image cannot be opened or mounted. Set `R2FUSE_MOUNT=1` to also mount every image and compare file sizes
 as seen through the kernel.
 
 ## How it works

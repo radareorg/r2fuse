@@ -61,6 +61,7 @@ static:
 	./dist/static.sh
 
 check test: $(BIN)
+	sh ./test/harness.sh
 	./test/run.sh $(TESTBINS)
 
 install: $(BIN)

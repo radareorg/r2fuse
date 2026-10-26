@@ -70,12 +70,20 @@ while read -r img fstype expect notes; do
 	2) res=reject ;;
 	*) res=crash ;;
 	esac
+	case "$expect" in
+	reject-file:*)
+		if [ "$rc" -eq 1 ] && [ "$(grep -c '^FAIL ' "$TMP/out")" -eq 1 ] \
+				&& grep -Fxq "FAIL ${expect#reject-file:}: open failed" "$TMP/out"; then
+			res=$expect
+		fi
+		;;
+	esac
 	summary=$(tail -n 1 "$TMP/out")
-	if [ "$res" = "$expect" ]; then
+	if [ "$res" != crash ] && [ "$res" = "$expect" ]; then
 		if [ "$res" = ok ]; then
 			echo "OK    $img: $summary"; pass=$((pass + 1))
-		elif [ "$res" = reject ]; then
-			echo "OK    $img: rejected malformed image"; pass=$((pass + 1))
+		elif [ "$res" != fail ]; then
+			echo "OK    $img: rejected malformed image or file"; pass=$((pass + 1))
 		else
 			echo "XFAIL $img: $notes"; xfail=$((xfail + 1))
 		fi

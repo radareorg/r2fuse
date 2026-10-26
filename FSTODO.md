@@ -62,8 +62,9 @@ Status legend: **[api]** core r_fs API, **[plugin]** a specific plugin,
   "symlinked" variants (`R`, `D`, ...). In practice:
   - grub plugins use `'f'` for regular files, which is not a defined constant.
   - ubifs uses `'l'` for symlinks, also undefined.
-  - reiserfs and xfs report symlinks as `'f'`, and opening them fails
-    (`reiserfs-link-root.img`, `xfs-symlink-size.img`).
+  - reiserfs and xfs now preserve symlinks as `'l'` through the grub wrapper
+    (`reiserfs-link-root.img`, `xfs-symlink-size.img`); reading their targets
+    still needs the readlink API below.
   - no plugin uses the upper-case variants.
 - **Proposal:**
   - define `R_FS_FILE_TYPE_SYMLINK 'l'`, `R_FS_FILE_TYPE_FIFO 'p'` and `R_FS_FILE_TYPE_SOCKET 'S'`;
@@ -157,14 +158,14 @@ Status legend: **[api]** core r_fs API, **[plugin]** a specific plugin,
 
 | Plugin | Image | Symptom | Notes |
 |---|---|---|---|
-| bfs | `haiku.bfs` | `/radare2_test/gvpr`: reads stop at 2048 of 5736 bytes, and later reads return 0 | `fs_bfs_read` only looks at the block run that contains `addr` ("read from direct blocks only"). Indirect and double-indirect runs are needed |
-| ext2 (grub) | `ext4_advanced.img` | mount fails | incompat flags 0x22c2: extents, 64bit, flex_bg and **metadata_csum_seed** (0x2000). grub rejects unknown incompat bits. Allow it read-only |
-| ntfs | `ntfs.img` | `$Extend/$ObjId`, `$Quota` and `$Reparse` are listed but cannot be opened | these metafiles have no unnamed `$DATA` stream. Report them as special, or expose their named streams |
-| ntfs | `ntfs-resident-oob.img` | `/file` cannot be opened | crafted image. Make sure the failure is a clean error |
-| reiserfs | `reiserfs-link-root.img`, `reiserfs-corrupt.img` | `link` is reported as `'f'` and cannot be opened | symlink type missing (see 1.5, 1.6) |
-| xfs | `xfs-symlink-size.img` | `link` is reported as `'f'` | same as above |
+| bfs | `haiku.bfs` | fixed: multi-block and cross-run reads return the full file | direct runs use the same reader as directories; indirect and double-indirect runs remain unsupported |
+| ext2 (grub) | `ext4_advanced.img` | fixed: the image mounts and passes read stress | 64-bit group descriptor stride and inode table addresses are supported; metadata checksum seeds are allowed for read-only access |
+| ntfs | `ntfs.img` | fixed: index-view metadata is reported as special entries | named stream access remains a separate feature |
+| ntfs | `ntfs-resident-oob.img` | `/file` is correctly refused | passing negative test checks the exact open failure; a crash or unrelated error fails |
+| reiserfs | `reiserfs-link-root.img`, `reiserfs-corrupt.img` | fixed: `link` is reported as `'l'` | readlink support is still missing (see 1.6) |
+| xfs | `xfs-symlink-size.img` | fixed: `link` is reported as `'l'` | readlink support is still missing |
 | ubifs | `ubifs.img` | 174 symlinks reported as `'l'` | readlink support (1.6) |
-| ubifs | `ubifs-oversize.img` | `File size (11) exceeds filesystem size (0)`, then 0 bytes are read | `leb_cnt` is 0 here. The size clamp should not use the volume size when that size is unknown |
+| ubifs | `ubifs-oversize.img` | fixed: the 11-byte file reads correctly | the volume-size clamp applies only when the volume size is known |
 | iso9660 | `iso.img` | level-1 names without an extension keep the dot: `LS.`, `SERVICES.` | strip the trailing `.` together with the `;1` version |
 | hfs | `hfs-oobread.img` | refuses to mount | crafted image, the expected result |
 | bfs | `bfs-sibling-cycle.img` | refuses to mount | crafted image, the expected result |

@@ -57,6 +57,8 @@ executable('r2fuse',
   link_args: link_args,
   install: true)
 
+test('harness', find_program('sh'), args: [meson.current_source_dir() / 'test/harness.sh'])
+
 test('check', find_program('test/run.sh'),
   args: [get_option('testbins')],
   depends: [],

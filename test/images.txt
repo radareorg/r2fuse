@@ -12,8 +12,8 @@ iso3.img                   -         ok
 iso-joliet-rockridge.iso   -         ok
 udf.img                    udf       ok       autodetected as iso9660
 haiku.bfs                  -         ok
-ntfs.img                   -         fail     $Extend metafiles cannot be opened
-ntfs-resident-oob.img      -         fail     crafted image
+ntfs.img                   -         ok       index-view metadata is reported as special files
+ntfs-resident-oob.img      -         reject-file:/file  resident value outside the MFT record
 reiserfs-link-root.img     -         ok       symlinks are reported as special files
 reiserfs-corrupt.img       -         ok       crafted image
 reiserfs-name-oob.img      -         ok       crafted image
