@@ -1,0 +1,146 @@
+name: Release
+
+# Self-contained r2fuse binaries: radare2 (GPL build, with the grub plugins)
+# and libfuse are linked statically, so nothing but the OS FUSE provider is
+# needed at runtime (Fusetta on macOS, /dev/fuse on Linux, WinFsp on Windows).
+
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+    inputs:
+      r2_ref:
+        description: 'radare2 branch or tag to link'
+        default: 'master'
+
+permissions:
+  contents: write
+
+env:
+  R2_REF: ${{ github.event.inputs.r2_ref || 'master' }}
+  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build static binary (alpine/musl)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -e R2_REF alpine:3.22 sh -c '
+            apk add --no-cache build-base linux-headers meson ninja git pkgconf curl patch file &&
+            git config --global --add safe.directory "*" &&
+            ./dist/static.sh'
+          sudo chown -R "$(id -u):$(id -g)" .
+          file r2fuse
+          ! ldd r2fuse 2>/dev/null
+      - name: Smoke test
+        run: |
+          git -c core.protectNTFS=false clone --depth 1 --filter=blob:none --no-checkout https://github.com/radareorg/radare2-testbins testbins
+          git -C testbins -c core.protectNTFS=false sparse-checkout set fs && git -C testbins -c core.protectNTFS=false checkout
+          ./r2fuse -v
+          ./test/run.sh testbins/fs
+      - name: Package
+        run: |
+          d=r2fuse-$VERSION-linux-${{ matrix.arch }}
+          mkdir $d && cp r2fuse README.md LICENSE FSTODO.md $d/
+          tar czf $d.tar.gz $d
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: r2fuse-*.tar.gz
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install meson ninja
+      - name: Build static binary (Fusetta libfuse)
+        run: |
+          ./dist/static.sh
+          # only system libraries and frameworks are allowed
+          ! otool -L r2fuse | tail -n +2 | grep -vE '^[[:space:]]+/(usr/lib|System)/'
+      - name: Smoke test
+        run: |
+          git -c core.protectNTFS=false clone --depth 1 --filter=blob:none --no-checkout https://github.com/radareorg/radare2-testbins testbins
+          git -C testbins -c core.protectNTFS=false sparse-checkout set fs && git -C testbins -c core.protectNTFS=false checkout
+          ./r2fuse -v
+          ./test/run.sh testbins/fs
+      - name: Package
+        run: |
+          d=r2fuse-$VERSION-macos-arm64
+          mkdir $d && cp r2fuse README.md LICENSE FSTODO.md $d/
+          tar czf $d.tar.gz $d
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: r2fuse-*.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
+      - name: Install build tools
+        run: |
+          pip install meson ninja
+          choco install winfsp pkgconfiglite -y
+      - name: Build static radare2
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch $env:R2_REF https://github.com/radareorg/radare2 r2src
+          meson setup r2build r2src "--prefix=$PWD/r2" --libdir=lib --buildtype=release --default-library=static -Dcli=disabled -Denable_tests=false -Db_vscrt=mt
+          ninja -C r2build install
+      - name: Build static r2fuse
+        shell: pwsh
+        run: |
+          $env:PKG_CONFIG_PATH = "$PWD/r2/lib/pkgconfig"
+          meson setup build --buildtype=release -Dstatic=true -Db_vscrt=mt
+          meson compile -C build
+          dumpbin /dependents build\r2fuse.exe
+      - name: Smoke test
+        shell: bash
+        run: |
+          git -c core.protectNTFS=false clone --depth 1 --filter=blob:none --no-checkout https://github.com/radareorg/radare2-testbins testbins
+          git -C testbins -c core.protectNTFS=false sparse-checkout set fs && git -C testbins -c core.protectNTFS=false checkout
+          ./build/r2fuse.exe -v
+          ./build/r2fuse.exe -L
+          for img in fat.img iso.img ext2.img; do
+            ./build/r2fuse.exe -s "$(cygpath -w "$PWD/testbins/fs/$img")"
+          done
+      - name: Package
+        shell: pwsh
+        run: |
+          $d = "r2fuse-$env:VERSION-windows-x64"
+          New-Item -ItemType Directory $d | Out-Null
+          Copy-Item build\r2fuse.exe, README.md, LICENSE, FSTODO.md $d
+          Compress-Archive -Path $d -DestinationPath "$d.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: r2fuse-*.zip
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

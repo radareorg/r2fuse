@@ -1,0 +1,4 @@
+option('r2_prefix', type: 'string', value: '', description: 'radare2 install prefix (windows only, autodetected with radare2 -H)')
+option('winfsp_prefix', type: 'string', value: 'C:/Program Files (x86)/WinFsp', description: 'WinFsp install prefix (windows only)')
+option('testbins', type: 'string', value: '../radare2/test/bins/fs', description: 'directory containing filesystem images to test')
+option('static', type: 'boolean', value: false, description: 'Link radare2 and libfuse statically')

@@ -1,0 +1,5 @@
+r2fuse
+build/
+*.o
+*.dSYM/
+build-static/

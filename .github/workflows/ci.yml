@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+        build_system: [make, meson]
+        exclude:
+          - os: windows-latest
+            build_system: make
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FUSE (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse3-dev fuse3 pkg-config
+          sudo modprobe fuse || true
+
+      - name: Install FUSE (macOS)
+        if: runner.os == 'macOS'
+        # the macFUSE headers and libfuse3 are enough to build, runners cannot load
+        # file system extensions so no real mounts happen here
+        run: brew install --cask macfuse
+
+      - name: Install WinFsp (Windows)
+        if: runner.os == 'Windows'
+        run: choco install winfsp -y
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
+
+      # build r2 from git: the point is to stress test the current r_fs.
+      # windows uses the release until r2 git builds with msvc again
+      # (libr/util/arena.c uses _Static_assert, which needs /std:c11)
+      - uses: radareorg/github-actions@v3
+        id: r2
+        with:
+          from-git: ${{ runner.os != 'Windows' }}
+
+      - name: Fetch test images
+        # only fs/ is needed, and other directories have names invalid on windows
+        run: |
+          git -c core.protectNTFS=false clone --depth 1 --filter=blob:none --no-checkout https://github.com/radareorg/radare2-testbins testbins
+          git -C testbins -c core.protectNTFS=false sparse-checkout set fs
+          git -C testbins -c core.protectNTFS=false checkout
+
+      - name: Build with Make
+        if: matrix.build_system == 'make'
+        run: make
+
+      - name: Test with Make
+        if: matrix.build_system == 'make'
+        run: make check TESTBINS=testbins/fs
+
+      - name: Setup Meson
+        if: matrix.build_system == 'meson'
+        run: pip install meson ninja ${{ runner.os != 'Windows' && '--break-system-packages' || '' }}
+
+      - name: Build with Meson
+        if: matrix.build_system == 'meson'
+        # not bash: on windows git's /usr/bin/link.exe would shadow the msvc linker
+        shell: pwsh
+        run: |
+          meson setup build "-Dtestbins=$PWD/testbins/fs" "-Dr2_prefix=${{ steps.r2.outputs.prefix }}"
+          meson compile -C build
+
+      - name: Test with Meson
+        if: matrix.build_system == 'meson' && runner.os != 'Windows'
+        run: meson test -C build --print-errorlogs
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ./build/r2fuse.exe -v
+          ./build/r2fuse.exe -L
+          ls -la testbins/fs | head
+          for img in fat.img iso.img ext2.img hfs.img; do
+            ./build/r2fuse.exe -d -s "$(cygpath -w "$PWD/testbins/fs/$img")"
+          done
+
+      - name: Mount test (Linux)
+        if: runner.os == 'Linux' && matrix.build_system == 'make'
+        run: R2FUSE_MOUNT=1 ./test/run.sh testbins/fs
