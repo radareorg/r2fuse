@@ -21,8 +21,15 @@ ifeq ($(STATIC),1)
 libdir_of=$(firstword $(shell $(PKG_CONFIG) --variable=libdir $(1)))
 static_libs=$(foreach l,$(patsubst -l%,%,$(filter -l%,$(shell $(PKG_CONFIG) --static --libs $(1)))),\
 	$(if $(wildcard $(call libdir_of,$(1))/lib$(l).a),$(call libdir_of,$(1))/lib$(l).a,-l$(l)))
-LDFLAGS+=$(call static_libs,r_fs r_io) $(call static_libs,$(FUSE_PC))
-LDFLAGS+=$(filter-out -l%,$(shell $(PKG_CONFIG) --static --libs r_fs r_io $(FUSE_PC)))
+# Release SDKs contain shared r2 libraries, while libfuse can still be static.
+ifeq ($(R2_SHARED),1)
+LDFLAGS+=$(shell $(PKG_CONFIG) --libs r_fs r_io)
+else
+LDFLAGS+=$(call static_libs,r_fs r_io)
+LDFLAGS+=$(filter-out -l%,$(shell $(PKG_CONFIG) --static --libs r_fs r_io))
+endif
+LDFLAGS+=$(call static_libs,$(FUSE_PC))
+LDFLAGS+=$(filter-out -l%,$(shell $(PKG_CONFIG) --static --libs $(FUSE_PC)))
 ifneq ($(shell uname),Darwin)
 LDFLAGS+=-static
 endif

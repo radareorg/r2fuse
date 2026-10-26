@@ -5,6 +5,7 @@
 #   dist/static.sh                 # clone radare2 master
 #   R2_SRC=../radare2 dist/static.sh
 #   R2_REF=6.2.4 dist/static.sh
+#   R2_PREFIX=/usr/local dist/static.sh # use installed r2 release libraries
 #
 # Linux: run it inside alpine (musl) to get a fully static binary.
 # macOS: libfuse is patched with the Fusetta (FSKit) mount backend.
@@ -14,6 +15,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${WORK:-$ROOT/build-static}
 R2_REF=${R2_REF:-master}
 R2_SRC=${R2_SRC:-}
+R2_PREFIX=${R2_PREFIX:-$WORK/r2}
 FUSE_VERSION=3.18.3
 FUSE_SHA256=bcd19582c5e30f7fe45dd86a5540e998590aa01903afc7ebcbeea6c8ac5421ee
 FUSETTA_REF=${FUSETTA_REF:-main}
@@ -80,8 +82,10 @@ build_fuse() {
 
 build_r2fuse() {
 	make -C "$ROOT" clean > /dev/null
-	PKG_CONFIG_PATH="$WORK/fuse/lib/pkgconfig:$WORK/r2/lib/pkgconfig" \
-		make -C "$ROOT" STATIC=1 FUSETTA_PC=
+	r2_shared=0
+	[ "$R2_PREFIX" = "$WORK/r2" ] || r2_shared=1
+	PKG_CONFIG_PATH="$WORK/fuse/lib/pkgconfig:$R2_PREFIX/lib/pkgconfig" \
+		make -C "$ROOT" STATIC=1 R2_SHARED="$r2_shared" FUSETTA_PC=
 	strip "$ROOT/r2fuse" 2> /dev/null || true
 	echo "Built $ROOT/r2fuse"
 	case "$OS" in
@@ -90,6 +94,6 @@ build_r2fuse() {
 	esac
 }
 
-build_r2
+[ "$R2_PREFIX" != "$WORK/r2" ] || build_r2
 build_fuse
 build_r2fuse

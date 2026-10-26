@@ -27,8 +27,10 @@ are tracked in [FSTODO.md](FSTODO.md).
 
 The [releases](https://github.com/radareorg/r2fuse/releases) page has one
 self-contained binary per platform: Linux x86_64/arm64 (static musl), macOS
-arm64 (for Fusetta) and Windows x64. radare2 and libfuse are linked
-statically, so radare2 does not need to be installed. You only need the OS
+arm64 (for Fusetta) and Windows x64. Linux links radare2 and libfuse statically;
+macOS and Windows bundle the libraries from the latest radare2 release.
+Keep the archive's binary and libraries together; radare2 does not need to
+be installed. You only need the OS
 FUSE provider: `/dev/fuse` on Linux, Fusetta on macOS, WinFsp on Windows.
 
 To build the same thing locally (radare2 and libfuse are compiled from source
@@ -188,5 +190,5 @@ files. See [FSTODO.md](FSTODO.md) for the list of `r_fs` features needed to do b
 
 ## License
 
-GPL-3.0-only, see [LICENSE](LICENSE). The release binaries statically link
-radare2 including its GPL-licensed grub filesystem plugins.
+GPL-3.0-only, see [LICENSE](LICENSE). The release archives include radare2
+and its GPL-licensed grub filesystem plugins.

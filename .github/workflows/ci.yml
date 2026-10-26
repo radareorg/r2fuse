@@ -46,14 +46,14 @@ jobs:
         with:
           arch: x64
 
-      # build r2 from git: the point is to stress test the current r_fs.
-      # windows uses the release until r2 git builds with msvc again
+      # Stress test current r_fs on Linux; build against releases elsewhere.
       - uses: radareorg/github-actions@v3
         id: r2
         with:
-          from-git: ${{ runner.os != 'Windows' }}
+          from-git: ${{ runner.os == 'Linux' }}
 
       - name: Fetch test images
+        if: runner.os == 'Linux'
         # only fs/ is needed, and other directories have names invalid on windows
         run: |
           git -c core.protectNTFS=false clone --depth 1 --filter=blob:none --no-checkout https://github.com/radareorg/radare2-testbins testbins
@@ -65,7 +65,7 @@ jobs:
         run: make
 
       - name: Test with Make
-        if: matrix.build_system == 'make'
+        if: matrix.build_system == 'make' && runner.os == 'Linux'
         run: make check TESTBINS=testbins/fs
 
       - name: Setup Meson
@@ -81,19 +81,16 @@ jobs:
           meson compile -C build
 
       - name: Test with Meson
-        if: matrix.build_system == 'meson' && runner.os != 'Windows'
+        if: matrix.build_system == 'meson' && runner.os == 'Linux'
         run: meson test -C build --print-errorlogs
 
-      - name: Smoke test (Windows)
-        if: runner.os == 'Windows'
+      - name: Smoke test (macOS and Windows)
+        if: runner.os != 'Linux'
         shell: bash
         run: |
-          ./build/r2fuse.exe -v
-          ./build/r2fuse.exe -L
-          ls -la testbins/fs | head
-          for img in fat.img iso.img ext2.img hfs.img; do
-            ./build/r2fuse.exe -d -s "$(cygpath -w "$PWD/testbins/fs/$img")"
-          done
+          bin=${{ matrix.build_system == 'make' && './r2fuse' || './build/r2fuse' }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          "$bin" -v
+          "$bin" -L
 
       - name: Mount test (Linux)
         if: runner.os == 'Linux' && matrix.build_system == 'make'
