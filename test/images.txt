@@ -3,7 +3,7 @@ apfs.img                   -         ok
 ext2.img                   -         ok
 ext3.img                   -         ok
 ext4.img                   -         ok
-ext4_advanced.img          -         fail     ext2 grub plugin cannot mount it
+ext4_advanced.img          -         ok
 fat.img                    -         ok
 hfs.img                    -         ok
 iso.img                    -         ok
@@ -11,18 +11,18 @@ iso2.img                   -         ok
 iso3.img                   -         ok
 iso-joliet-rockridge.iso   -         ok
 udf.img                    udf       ok       autodetected as iso9660
-haiku.bfs                  -         fail     bfs reads stop after the first block run
+haiku.bfs                  -         ok
 ntfs.img                   -         fail     $Extend metafiles cannot be opened
 ntfs-resident-oob.img      -         fail     crafted image
-reiserfs-link-root.img     -         fail     symlinks reported as regular files
-reiserfs-corrupt.img       -         fail     crafted image
+reiserfs-link-root.img     -         ok       symlinks are reported as special files
+reiserfs-corrupt.img       -         ok       crafted image
 reiserfs-name-oob.img      -         ok       crafted image
 sfs-btree-nodes.img        sfs       ok       no sfs magic in r_fs_name
 sfs-dir-cycle.img          sfs       ok       crafted image
-sfs-blocksize-0.img        sfs       fail     crafted image, must refuse to mount
+sfs-blocksize-0.img        sfs       reject   crafted image, must refuse to mount
 ubifs.img                  -         ok
 ubifs-index-cycle.img      -         ok       crafted image
-ubifs-oversize.img         -         fail     crafted image
+ubifs-oversize.img         -         ok       synthetic image with unknown volume size
 xfs-symlink-size.img       -         ok
-bfs-sibling-cycle.img      -         fail     crafted image, must refuse to mount
-hfs-oobread.img            -         fail     crafted image, must refuse to mount
+bfs-sibling-cycle.img      -         reject   crafted image, must refuse to mount
+hfs-oobread.img            -         reject   crafted image, must refuse to mount

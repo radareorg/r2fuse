@@ -291,7 +291,7 @@ int main(int argc, const char **argv) {
 	R2F *r = r2f_new (&opt);
 	if (!r) {
 		r_list_free (fuseopts);
-		return 1;
+		return check? 2: 1;
 	}
 	int ret;
 	if (check) {

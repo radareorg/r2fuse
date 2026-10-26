@@ -57,29 +57,36 @@ while read -r img fstype expect notes; do
 	fi
 	set --
 	[ "$fstype" != "-" ] && set -- -t "$fstype"
-	if with_timeout "$R2FUSE" -s "$@" "$path" > "$TMP/out" 2>&1; then
+	rc=0
+	with_timeout "$R2FUSE" -s "$@" "$path" > "$TMP/out" 2>&1 || rc=$?
+	case "$rc" in
+	0)
 		res=ok
 		if [ -n "$R2FUSE_MOUNT" ] && ! mount_test "$path" "$@"; then
 			res=fail
 		fi
-	else
-		res=fail
-	fi
+		;;
+	1) res=fail ;;
+	2) res=reject ;;
+	*) res=crash ;;
+	esac
 	summary=$(tail -n 1 "$TMP/out")
 	if [ "$res" = "$expect" ]; then
 		if [ "$res" = ok ]; then
 			echo "OK    $img: $summary"; pass=$((pass + 1))
+		elif [ "$res" = reject ]; then
+			echo "OK    $img: rejected malformed image"; pass=$((pass + 1))
 		else
 			echo "XFAIL $img: $notes"; xfail=$((xfail + 1))
 		fi
 	elif [ "$res" = ok ]; then
 		echo "XPASS $img: $summary (update test/images.txt)"; xpass=$((xpass + 1))
 	else
-		echo "FAIL  $img: $summary"
+		echo "FAIL  $img: exit $rc (expected $expect): $summary"
 		grep -E '^(FAIL|ERROR)' "$TMP/out" | head -n 5 | sed 's/^/      /'
 		fail=$((fail + 1))
 	fi
 done < "$HERE/images.txt"
 
 echo "# ok=$pass fail=$fail xfail=$xfail xpass=$xpass skip=$skip"
-[ $fail -eq 0 ]
+[ $fail -eq 0 ] && [ $xpass -eq 0 ]
