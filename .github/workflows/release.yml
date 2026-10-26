@@ -103,22 +103,32 @@ jobs:
         run: |
           pip install meson ninja
           choco install winfsp pkgconfiglite -y
+      - name: Cache static radare2
+        id: r2-cache
+        uses: actions/cache@v4
+        with:
+          path: r2
+          key: windows-x64-radare2-${{ env.R2_REF }}-c11-mt-v1
       - name: Build static radare2
+        if: steps.r2-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           git init r2src
           git -C r2src remote add origin https://github.com/radareorg/radare2
           git -C r2src fetch --depth 1 origin $env:R2_REF
           git -C r2src checkout --detach FETCH_HEAD
-          # The string macros require the conforming MSVC preprocessor.
-          meson setup r2build r2src "--prefix=$PWD/r2" --libdir=lib --buildtype=release --default-library=static -Dcli=disabled -Denable_tests=false -Db_vscrt=mt -Dc_std=c11 -Dc_args=/Zc:preprocessor
+          # Use the conforming preprocessor and r2's portable tokenizer for APFS.
+          meson setup r2build r2src "--prefix=$PWD/r2" --libdir=lib --buildtype=release --default-library=static -Dcli=disabled -Denable_tests=false -Db_vscrt=mt -Dc_std=c11 "-Dc_args=['/Zc:preprocessor', '/Dstrtok_r=r_str_tok_r']"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ninja -C r2build install
       - name: Build static r2fuse
         shell: pwsh
         run: |
           $env:PKG_CONFIG_PATH = "$PWD/r2/lib/pkgconfig"
-          meson setup build --buildtype=release -Dstatic=true -Db_vscrt=mt
+          meson setup build --buildtype=release -Dstatic=true -Db_vscrt=mt -Dc_std=c11 -Dc_args=/Zc:preprocessor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           meson compile -C build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dumpbin /dependents build\r2fuse.exe
       - name: Smoke test
         shell: bash
